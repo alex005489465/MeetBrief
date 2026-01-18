@@ -1,0 +1,22 @@
+# NeMo Speaker Diarization 依賴
+# PyTorch 2.5 已在基礎映像中
+
+# NeMo Toolkit (ASR 模組包含 Speaker Diarization)
+nemo_toolkit[asr]>=2.0.0
+
+# Redis 客戶端
+redis>=4.0.0
+
+# 環境變數
+python-dotenv>=1.0.0
+
+# 音檔處理
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# OmegaConf (NeMo 配置)
+omegaconf>=2.3.0
+
+# 其他 NeMo 依賴
+hydra-core>=1.3.0
+pytorch-lightning>=2.0.0

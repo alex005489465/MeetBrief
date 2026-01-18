@@ -1,0 +1,31 @@
+temp/
+nul
+.claude
+
+# 環境變數
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# 資料目錄
+data/uploads/*
+data/results/*
+data/*.db
+!data/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

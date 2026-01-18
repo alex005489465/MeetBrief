@@ -1,0 +1,4 @@
+# Whisper Worker 服務依賴
+faster-whisper
+python-dotenv
+redis

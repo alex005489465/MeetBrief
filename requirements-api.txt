@@ -1,0 +1,10 @@
+# API 服務依賴
+fastapi
+uvicorn[standard]
+python-multipart
+sqlalchemy
+aiosqlite
+python-dotenv
+pydub
+redis
+openai

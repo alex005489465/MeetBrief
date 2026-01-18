@@ -1,0 +1,174 @@
+services:
+  # Redis 訊息佇列
+  redis:
+    image: redis:7-alpine
+    container_name: meetbrief-redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # API 服務 (FastAPI)
+  api:
+    image: python:3.11-slim
+    container_name: meetbrief-api
+    ports:
+      - "21520:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./shared:/app/shared
+      - ./data:/app/data
+      - ./requirements-api.txt:/app/requirements.txt
+      - ./.env:/app/.env
+      - api_pip_cache:/root/.cache/pip
+      - api_packages:/usr/local/lib/python3.11/site-packages
+      - api_apt_cache:/var/cache/apt
+      - api_apt_lib:/var/lib/apt
+    working_dir: /app
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - PYTHONIOENCODING=utf-8
+    command: >
+      bash -c "
+        if ! command -v ffmpeg &> /dev/null; then
+          echo '安裝 ffmpeg...' &&
+          apt-get update && apt-get install -y --no-install-recommends ffmpeg;
+        fi &&
+        pip install --quiet -r requirements.txt &&
+        python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  # Whisper Worker (GPU) - 只負責轉錄
+  worker:
+    image: pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+    container_name: meetbrief-worker
+    volumes:
+      - ./worker:/app/worker
+      - ./shared:/app/shared
+      - ./data:/app/data
+      - ./requirements-worker.txt:/app/requirements.txt
+      - ./.env:/app/.env
+      - worker_pip_cache:/root/.cache/pip
+      - worker_packages:/opt/conda/lib/python3.10/site-packages
+      - worker_apt_cache:/var/cache/apt
+      - worker_apt_lib:/var/lib/apt
+      - worker_huggingface:/root/.cache/huggingface
+    working_dir: /app
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - WHISPER_MODEL=${WHISPER_MODEL:-medium}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
+      - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-float16}
+      - REDIS_URL=redis://redis:6379/0
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - PYTHONIOENCODING=utf-8
+    command: >
+      bash -c "
+        if ! command -v ffmpeg &> /dev/null || ! command -v gcc &> /dev/null; then
+          echo '安裝系統依賴...' &&
+          apt-get update && apt-get install -y --no-install-recommends ffmpeg gcc g++ python3-dev;
+        fi &&
+        pip install --quiet -r requirements.txt &&
+        python -u -m worker.main
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Speaker Diarizer Worker (NeMo)
+  diarizer:
+    image: pytorch/pytorch:2.9.1-cuda12.8-cudnn9-runtime
+    container_name: meetbrief-diarizer
+    shm_size: '2gb'
+    volumes:
+      - ./diarizer:/app/diarizer
+      - ./shared:/app/shared
+      - ./data:/app/data
+      - ./requirements-diarizer.txt:/app/requirements.txt
+      - ./.env:/app/.env
+      - diarizer_pip_cache:/root/.cache/pip
+      - diarizer_packages:/opt/conda/lib/python3.11/site-packages
+      - diarizer_apt_cache:/var/cache/apt
+      - diarizer_apt_lib:/var/lib/apt
+      - diarizer_nemo_cache:/root/.cache/torch
+    working_dir: /app
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - PYTHONIOENCODING=utf-8
+    command: >
+      bash -c "
+        if ! command -v ffmpeg &> /dev/null || ! command -v gcc &> /dev/null; then
+          echo '安裝系統依賴...' &&
+          apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfile1 gcc g++;
+        fi &&
+        pip install --quiet -r requirements.txt &&
+        python -u -m diarizer.main
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  api_pip_cache:
+  api_packages:
+  api_apt_cache:
+  api_apt_lib:
+  worker_pip_cache:
+  worker_packages:
+  worker_apt_cache:
+  worker_apt_lib:
+  worker_huggingface:
+  diarizer_pip_cache:
+  diarizer_packages:
+  diarizer_apt_cache:
+  diarizer_apt_lib:
+  diarizer_nemo_cache:
