@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from ..database import get_db
 from ..models import Meeting
 from ..config import UPLOADS_DIR, ALLOWED_EXTENSIONS, MAX_UPLOAD_SIZE
-from ..utils.audio import get_audio_duration, is_valid_audio_format, get_safe_filename
+from ..utils.audio import get_audio_duration, is_valid_audio_format, get_safe_filename, is_video_format, extract_audio_from_video
 from shared.queue import enqueue_task, get_task_status, enqueue_diarize_task
 from backend.modules.transcription import get_coordinator
 
@@ -115,6 +115,25 @@ async def upload_meeting(
     # 儲存檔案
     with open(filepath, "wb") as f:
         f.write(content)
+
+    # 若為影片格式，提取音軌
+    if is_video_format(original_filename):
+        try:
+            # 提取音軌（輸出為 .mp3）
+            audio_path = extract_audio_from_video(str(filepath))
+            # 刪除原始影片，節省空間
+            os.remove(filepath)
+            # 更新 filepath 指向音檔
+            filepath = Path(audio_path)
+            print(f"[Upload] 已從影片提取音軌: {filepath}")
+        except RuntimeError as e:
+            # 提取失敗時刪除已上傳的影片
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            raise HTTPException(
+                status_code=500,
+                detail=f"影片音軌提取失敗: {str(e)}"
+            )
 
     # 取得音檔長度
     duration = get_audio_duration(str(filepath))

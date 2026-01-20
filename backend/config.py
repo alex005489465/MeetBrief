@@ -27,4 +27,10 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # 上傳設定
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", 524288000))  # 500MB
-ALLOWED_EXTENSIONS = ["mp3", "wav", "m4a", "ogg", "webm", "aac", "flac", "wma"]
+
+# 音檔格式
+ALLOWED_AUDIO_EXTENSIONS = ["mp3", "wav", "m4a", "ogg", "webm", "aac", "flac", "wma"]
+# 影片格式
+ALLOWED_VIDEO_EXTENSIONS = ["mp4", "mkv", "avi", "mov", "webm"]
+# 所有允許的格式
+ALLOWED_EXTENSIONS = ALLOWED_AUDIO_EXTENSIONS + ALLOWED_VIDEO_EXTENSIONS
